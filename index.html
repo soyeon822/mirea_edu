@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#F6C945" />
+  <title>익명 피드백</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{
+      --yellow:#F6C945;
+      --yellow-soft:#FFF7D6;
+      --yellow-deep:#D7A800;
+      --ink:#222;
+      --muted:#747474;
+      --line:#E7E4DA;
+      --bg:#FAFAF7;
+      --card:#FFF;
+      --good:#198754;
+      --bad:#D64545;
+      --shadow:0 12px 36px rgba(28,28,28,.08);
+      --radius:22px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;background:var(--bg);color:var(--ink);
+      font-family:Pretendard,"Noto Sans KR",Apple SD Gothic Neo,system-ui,-apple-system,sans-serif;
+    }
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    .app{min-height:100vh}
+    .screen{display:none;min-height:100vh;padding:28px 18px 96px}
+    .screen.active{display:block}
+    .wrap{width:min(720px,100%);margin:0 auto}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;font-weight:900;font-size:21px}
+    .brand-mark{width:36px;height:36px;border-radius:12px;background:var(--yellow);display:grid;place-items:center}
+    h1{font-size:30px;line-height:1.25;margin:0 0 10px}
+    h2{font-size:22px;margin:0 0 12px}
+    p{line-height:1.65}
+    .sub{color:var(--muted);margin:0 0 24px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+    .hero{padding:28px;background:linear-gradient(145deg,#fff 0%,#fff8da 100%);margin-bottom:18px}
+    .hero-chip{display:inline-block;padding:7px 10px;border-radius:999px;background:var(--yellow);font-weight:800;font-size:12px;margin-bottom:14px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .stack{display:grid;gap:12px}
+    .btn{
+      width:100%;border:0;border-radius:16px;padding:15px 16px;font-weight:800;
+      background:#222;color:#fff;transition:.15s transform,.15s opacity
+    }
+    .btn:hover{transform:translateY(-1px)}
+    .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    .btn-yellow{background:var(--yellow);color:#191919}
+    .btn-white{background:#fff;color:#222;border:1px solid var(--line)}
+    .btn-danger{background:#fff;color:var(--bad);border:1px solid #F0CACA}
+    .btn-small{width:auto;padding:9px 12px;border-radius:12px;font-size:13px}
+    .icon-btn{border:0;background:transparent;font-size:19px;padding:4px}
+    label{display:block;font-size:13px;font-weight:800;margin:18px 0 8px}
+    input,textarea{
+      width:100%;border:1px solid var(--line);background:#fff;border-radius:15px;
+      padding:14px 15px;outline:none
+    }
+    input:focus,textarea:focus{border-color:var(--yellow-deep);box-shadow:0 0 0 3px rgba(246,201,69,.16)}
+    textarea{min-height:145px;resize:vertical;line-height:1.55}
+    .field-help,.count{color:var(--muted);font-size:12px}
+    .count{text-align:right;margin-top:5px}
+    .back{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:4px 0;margin-bottom:24px;font-weight:800}
+    .page-item{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line)}
+    .page-item:last-child{border-bottom:0}
+    .page-title{font-weight:900}
+    .page-meta{font-size:13px;color:var(--muted);margin-top:4px}
+    .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:900;letter-spacing:1px}
+    .codebar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--yellow-soft);border:1px solid #F1D678;border-radius:16px;padding:14px 16px;margin:18px 0}
+    .empty{text-align:center;padding:38px 18px;color:var(--muted)}
+    .anon{background:#F5F5F2;border-radius:15px;padding:14px 15px;color:#666;font-size:13px;line-height:1.55;margin:18px 0}
+    .tabs{display:flex;gap:8px;margin:18px 0}
+    .tab{flex:1;border:1px solid var(--line);background:#fff;padding:11px;border-radius:13px;font-weight:800}
+    .tab.active{background:#222;color:#fff;border-color:#222}
+    .feedback{padding:17px 0;border-bottom:1px solid var(--line)}
+    .feedback:last-child{border-bottom:0}
+    .feedback-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .feedback-date{font-size:12px;color:var(--muted)}
+    .feedback-text{white-space:pre-wrap;line-height:1.65}
+    .tag{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900}
+    .tag-good{background:#EAF7F0;color:var(--good)}
+    .tag-bad{background:#FDEEEE;color:var(--bad)}
+    .pin-dots{display:flex;justify-content:center;gap:15px;margin:28px 0}
+    .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid #222}
+    .pin-dot.on{background:#222}
+    .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:360px;margin:0 auto}
+    .key{border:1px solid var(--line);background:#fff;border-radius:16px;padding:18px;font-size:20px;font-weight:800}
+    .key:active{background:var(--yellow-soft)}
+    .error{color:var(--bad);font-size:13px;font-weight:700;min-height:20px;text-align:center;margin:10px 0}
+    .success{font-size:64px;text-align:center;margin-top:60px}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+    .stat{padding:22px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+    .stat strong{display:block;font-size:28px;margin-top:4px}
+    .switchrow{display:flex;justify-content:space-between;align-items:center;gap:16px}
+    .switch{position:relative;width:56px;height:32px;display:inline-block}
+    .switch input{display:none}
+    .slider{position:absolute;inset:0;border-radius:999px;background:#CCC;transition:.2s}
+    .slider:before{content:"";position:absolute;width:24px;height:24px;left:4px;top:4px;border-radius:50%;background:#fff;transition:.2s}
+    .switch input:checked + .slider{background:var(--yellow-deep)}
+    .switch input:checked + .slider:before{transform:translateX(24px)}
+    .admin-entry{position:fixed;right:14px;bottom:12px;border:0;background:transparent;color:#AAA;font-size:11px}
+    .toast{
+      position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);
+      background:#222;color:#fff;padding:12px 16px;border-radius:13px;font-size:13px;
+      opacity:0;pointer-events:none;transition:.25s;z-index:1000;max-width:calc(100vw - 36px);text-align:center
+    }
+    .toast.show{opacity:1;transform:translate(-50%,0)}
+    .new-popup{
+      position:fixed;left:50%;bottom:24px;transform:translate(-50%,120px);
+      width:min(520px,calc(100vw - 32px));background:#222;color:#fff;border-radius:18px;
+      padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.25);transition:.35s;z-index:900
+    }
+    .new-popup.show{transform:translate(-50%,0)}
+    .new-popup button{background:transparent;border:0;color:#fff;font-size:18px}
+    .setup-warning{display:none;background:#FFF0F0;color:#A93030;border:1px solid #F0BDBD;border-radius:16px;padding:14px 16px;margin:0 0 18px;font-size:13px;line-height:1.55}
+    .setup-warning.show{display:block}
+    .search-results{margin-top:14px}
+    .sep{height:1px;background:var(--line);margin:22px 0}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:10px;align-items:center}
+    .row>*{min-width:0}
+    .grow{flex:1}
+    .danger-zone{margin-top:28px;padding-top:22px;border-top:1px solid #F0D0D0}
+    @media(max-width:560px){
+      h1{font-size:26px}.grid,.stats{grid-template-columns:1fr}.screen{padding-top:20px}
+      .hero{padding:22px}.card{padding:18px}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <section id="home" class="screen active">
+    <div class="wrap">
+      <div class="brand"><span class="brand-mark">💬</span> 익명 피드백</div>
+      <div id="setupWarning" class="setup-warning">
+        Supabase 연결 정보가 아직 설정되지 않았어요. index.html 상단 스크립트의
+        <b>SUPABASE_URL</b>, <b>SUPABASE_ANON_KEY</b> 값을 입력해주세요.
+      </div>
+
+      <div class="card hero">
+        <span class="hero-chip">완전 익명</span>
+        <h1>서로에게 도움이 되는<br>솔직한 피드백을 남겨보세요.</h1>
+        <p class="sub">작성자 정보는 저장하지 않아요. 코드를 공유하고 장점과 개선점을 편하게 받아보세요.</p>
+        <div class="grid">
+          <button class="btn btn-yellow" onclick="goCreate()">내 페이지 만들기</button>
+          <button class="btn" onclick="goSearch()">친구 페이지 찾기</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h2>내 페이지 바로가기</h2>
+        <p class="sub">6자리 코드를 알고 있다면 바로 내 페이지로 들어갈 수 있어요.</p>
+        <div class="row">
+          <input class="grow" id="quickCode" inputmode="numeric" maxlength="6" placeholder="6자리 코드"
+            oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)"
+            onkeydown="if(event.key==='Enter') quickOpenMyPage()" />
+          <button class="btn btn-yellow btn-small" onclick="quickOpenMyPage()">바로가기</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h2>내 페이지 복구</h2>
+        <p class="sub">내 페이지 목록이 사라졌다면 코드와 PIN으로 다시 등록할 수 있어요.</p>
+        <label for="recoverCode">6자리 코드</label>
+        <input id="recoverCode" inputmode="numeric" maxlength="6" placeholder="예: 123456"
+          oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)" />
+        <label for="recoverPin">4자리 PIN</label>
+        <input id="recoverPin" inputmode="numeric" maxlength="4" placeholder="숫자 4자리"
+          oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)"
+          onkeydown="if(event.key==='Enter') recoverMyPage()" />
+        <button class="btn btn-white" style="margin-top:16px" onclick="recoverMyPage()">내 페이지 복구하기</button>
+      </div>
+
+      <div class="card">
+        <h2>내가 만든 페이지</h2>
+        <p class="sub">이 브라우저에 저장된 내 페이지가 표시돼요.</p>
+        <div id="myPages"></div>
+      </div>
+    </div>
+    <button class="admin-entry" onclick="showScreen('admin-login')">관리자</button>
+  </section>
+
+  <section id="create" class="screen">
+    <div class="wrap">
+      <button class="back" onclick="showScreen('home')">← 홈으로</button>
+      <h1>내 페이지 만들기</h1>
+      <p class="sub">피드백을 받을 페이지를 만들어요.</p>
+      <div class="card">
+        <label for="createName">이름 / 닉네임 *</label>
+        <input id="createName" maxlength="30" placeholder="예: 김미래" />
+        <label for="createRole">직무 / 역할</label>
+        <input id="createRole" maxlength="50" placeholder="예: 프론트엔드 개발자" />
+        <label for="createPin">4자리 PIN *</label>
+        <input id="createPin" inputmode="numeric" maxlength="4" placeholder="숫자 4자리" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)" />
+        <p class="field-help">피드백 확인과 페이지 삭제에 필요하니 꼭 기억해주세요.</p>
+        <button class="btn btn-yellow" style="margin-top:20px" onclick="createPage()">페이지 만들기</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="search" class="screen">
+    <div class="wrap">
+      <button class="back" onclick="showScreen('home')">← 홈으로</button>
+      <h1>친구 페이지 찾기</h1>
+      <p class="sub">받은 6자리 코드 또는 이름을 입력해주세요.</p>
+      <div class="card">
+        <div class="row">
+          <input class="grow" id="searchInput" maxlength="50" placeholder="코드 또는 이름" onkeydown="if(event.key==='Enter') searchPages()" />
+          <button class="btn btn-small" onclick="searchPages()">검색</button>
+        </div>
+        <div id="searchResults" class="search-results"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="write" class="screen">
+    <div class="wrap">
+      <button class="back" onclick="showScreen('search')">← 검색으로</button>
+      <h1 id="writeTitle">피드백 작성</h1>
+      <p id="writeMeta" class="sub"></p>
+      <div class="card">
+        <div class="anon">🔒 <b>익명으로 제출돼요.</b><br>작성자 이름, 계정, 기기 정보 등 작성자를 식별하기 위한 정보는 저장하지 않습니다.</div>
+        <label for="strength">장점</label>
+        <textarea id="strength" maxlength="300" placeholder="좋았던 점, 강점, 계속 유지했으면 하는 점을 적어주세요." oninput="updateCount('strength','strengthCount')"></textarea>
+        <div id="strengthCount" class="count">0 / 300</div>
+        <label for="weakness">단점</label>
+        <textarea id="weakness" maxlength="300" placeholder="아쉬웠던 점, 개선하면 좋을 점을 적어주세요." oninput="updateCount('weakness','weaknessCount')"></textarea>
+        <div id="weaknessCount" class="count">0 / 300</div>
+        <button class="btn btn-yellow" style="margin-top:20px" onclick="submitFeedback()">익명으로 피드백 제출하기</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="submitted" class="screen">
+    <div class="wrap">
+      <div class="success">🎉</div>
+      <div style="text-align:center;max-width:480px;margin:0 auto">
+        <h1>피드백을 전달했어요!</h1>
+        <p class="sub">작성자 정보는 저장되지 않았어요.</p>
+        <div class="stack">
+          <button class="btn btn-yellow" onclick="showScreen('search')">다른 페이지 찾기</button>
+          <button class="btn btn-white" onclick="showScreen('home')">홈으로</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pin" class="screen">
+    <div class="wrap">
+      <button class="back" onclick="showScreen('home')">← 홈으로</button>
+      <div style="text-align:center">
+        <h1>PIN을 입력해주세요</h1>
+        <p id="pinTarget" class="sub"></p>
+        <div class="pin-dots">
+          <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+        </div>
+        <div id="pinError" class="error"></div>
+        <div class="keypad">
+          <button class="key" onclick="pressPin('1')">1</button>
+          <button class="key" onclick="pressPin('2')">2</button>
+          <button class="key" onclick="pressPin('3')">3</button>
+          <button class="key" onclick="pressPin('4')">4</button>
+          <button class="key" onclick="pressPin('5')">5</button>
+          <button class="key" onclick="pressPin('6')">6</button>
+          <button class="key" onclick="pressPin('7')">7</button>
+          <button class="key" onclick="pressPin('8')">8</button>
+          <button class="key" onclick="pressPin('9')">9</button>
+          <button class="key" onclick="clearPin()">C</button>
+          <button class="key" onclick="pressPin('0')">0</button>
+          <button class="key" onclick="backPin()">⌫</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="mine" class="screen">
+    <div class="wrap">
+      <button class="back" onclick="showScreen('home')">← 홈으로</button>
+      <h1 id="mineName">내 피드백</h1>
+      <p id="mineRole" class="sub"></p>
+      <div class="codebar">
+        <div><span class="muted" style="font-size:12px">내 코드</span><br><span id="mineCode" class="code"></span></div>
+        <button class="btn btn-white btn-small" onclick="copyCurrentCode()">📋 코드 복사</button>
+      </div>
+
+      <div class="card">
+        <div class="tabs">
+          <button id="tabStrength" class="tab active" onclick="renderMineTab('strength')">장점 <span id="strengthTotal"></span></button>
+          <button id="tabWeakness" class="tab" onclick="renderMineTab('weakness')">단점 <span id="weaknessTotal"></span></button>
+        </div>
+        <div id="mineFeedbacks"></div>
+      </div>
+
+      <div class="danger-zone">
+        <button class="btn btn-danger" onclick="deleteOwnPage()">이 페이지 삭제</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="admin-login" class="screen">
+    <div class="wrap" style="max-width:520px">
+      <button class="back" onclick="showScreen('home')">← 홈으로</button>
+      <h1>관리자 로그인</h1>
+      <p class="sub">관리자 전용 비밀번호를 입력해주세요.</p>
+      <div class="card">
+        <input id="adminPassword" type="password" placeholder="비밀번호" onkeydown="if(event.key==='Enter') adminLogin()" />
+        <div id="adminLoginError" class="error"></div>
+        <button class="btn btn-yellow" onclick="adminLogin()">로그인</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="admin" class="screen">
+    <div class="wrap">
+      <div class="row" style="justify-content:space-between;margin-bottom:24px">
+        <div class="brand" style="margin:0"><span class="brand-mark">⚙️</span> 관리자</div>
+        <button class="btn btn-white btn-small" onclick="adminLogout()">나가기</button>
+      </div>
+
+      <div class="card switchrow">
+        <div>
+          <div style="font-weight:900">서비스 열림</div>
+          <div id="modeText" class="field-help">페이지 생성과 피드백 작성을 허용합니다.</div>
+        </div>
+        <label class="switch">
+          <input id="modeToggle" type="checkbox" onchange="toggleAppMode()" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span class="muted">전체 페이지</span><strong id="pageStat">0</strong></div>
+        <div class="stat"><span class="muted">전체 피드백</span><strong id="feedbackStat">0</strong></div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">생성된 페이지</h2>
+          <button class="btn btn-white btn-small" onclick="loadAdmin()">새로고침</button>
+        </div>
+        <div id="adminPages"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="admin-detail" class="screen">
+    <div class="wrap">
+      <button class="back" onclick="showScreen('admin')">← 관리자 대시보드</button>
+      <h1 id="adminDetailName">페이지 상세</h1>
+      <p id="adminDetailMeta" class="sub"></p>
+      <div class="card">
+        <div id="adminFeedbacks"></div>
+      </div>
+      <div class="danger-zone">
+        <button class="btn btn-danger" onclick="adminDeletePage()">이 페이지 삭제</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="newPopup" class="new-popup">
+  <span id="newPopupText">새로운 피드백이 있어요! 👀</span>
+  <button onclick="hideNewPopup()">✕</button>
+</div>
+
+<script>
+/* =========================
+   1) Supabase 연결 정보 입력
+   ========================= */
+const SUPABASE_URL = "https://bugvcxiwlkyyzmvpjalr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1Z3ZjeGl3bGt5eXptdnBqYWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MDA3MDMsImV4cCI6MjEwNTQ3NjcwM30.26idzIILAjSkyVkeYL8fHZvOd1bkoio9VKkkqf42jfI";
+
+/* 관리자 비밀번호 */
+const ADMIN_PASSWORD = "admin0822";
+
+const isConfigured =
+  SUPABASE_URL.startsWith("https://") &&
+  !SUPABASE_URL.includes("YOUR_") &&
+  SUPABASE_ANON_KEY &&
+  !SUPABASE_ANON_KEY.includes("YOUR_");
+
+const db = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+let selectedPage = null;
+let pinBuffer = "";
+let currentPage = null;
+let currentFeedbacks = [];
+let currentMineTab = "strength";
+let adminSelectedPage = null;
+let adminAuthed = false;
+
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(x => x.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  window.scrollTo({top:0,behavior:"instant"});
+  if(id === "home") loadMyPages();
+  if(id === "admin" && adminAuthed) loadAdmin();
+}
+
+function toast(msg){
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+function ensureDb(){
+  if(!isConfigured || !db){
+    toast("Supabase 연결 정보를 먼저 설정해주세요.");
+    return false;
+  }
+  return true;
+}
+
+function checkAppOpen(){
+  const mode = localStorage.getItem("app_mode") || "open";
+  if(mode !== "open"){
+    toast("현재 서비스가 잠겨 있어 새로 만들거나 작성할 수 없어요.");
+    return false;
+  }
+  return true;
+}
+
+function goCreate(){
+  if(!checkAppOpen()) return;
+  showScreen("create");
+}
+
+function goSearch(){
+  showScreen("search");
+  document.getElementById("searchInput").value = "";
+  document.getElementById("searchResults").innerHTML = "";
+}
+
+function updateCount(inputId,countId){
+  const n = document.getElementById(inputId).value.length;
+  document.getElementById(countId).textContent = `${n} / 300`;
+}
+
+async function generateUniqueCode(){
+  for(let i=0;i<20;i++){
+    const code = String(Math.floor(100000 + Math.random()*900000));
+    const { data, error } = await db.from("pages").select("code").eq("code",code).maybeSingle();
+    if(error) throw error;
+    if(!data) return code;
+  }
+  throw new Error("고유 코드 생성에 실패했습니다.");
+}
+
+async function createPage(){
+  if(!ensureDb() || !checkAppOpen()) return;
+  const name = document.getElementById("createName").value.trim();
+  const role = document.getElementById("createRole").value.trim();
+  const pin = document.getElementById("createPin").value.trim();
+
+  if(!name){ toast("이름 또는 닉네임을 입력해주세요."); return; }
+  if(!/^\d{4}$/.test(pin)){ toast("PIN은 숫자 4자리로 입력해주세요."); return; }
+
+  try{
+    const code = await generateUniqueCode();
+    const { error } = await db.from("pages").insert({code,name,role:role || null,pin});
+    if(error) throw error;
+
+    const mine = JSON.parse(localStorage.getItem("my_page_codes") || "[]");
+    if(!mine.includes(code)) mine.push(code);
+    localStorage.setItem("my_page_codes", JSON.stringify(mine));
+
+    document.getElementById("createName").value = "";
+    document.getElementById("createRole").value = "";
+    document.getElementById("createPin").value = "";
+    toast(`페이지가 만들어졌어요. 코드: ${code}`);
+    showScreen("home");
+  }catch(e){
+    console.error(e);
+    toast("페이지 생성 중 오류가 발생했어요.");
+  }
+}
+
+
+async function quickOpenMyPage(){
+  if(!ensureDb()) return;
+  const code = document.getElementById("quickCode").value.trim();
+  if(!/^\d{6}$/.test(code)){
+    toast("6자리 코드를 입력해주세요.");
+    return;
+  }
+
+  const {data,error} = await db.from("pages").select("*").eq("code",code).maybeSingle();
+  if(error || !data){
+    console.error(error);
+    toast("해당 코드를 가진 페이지를 찾을 수 없어요.");
+    return;
+  }
+
+  selectedPage = data;
+  pinBuffer = "";
+  document.getElementById("pinTarget").textContent = `${data.name}님의 페이지`;
+  document.getElementById("pinError").textContent = "";
+  updatePinDots();
+  showScreen("pin");
+}
+
+async function recoverMyPage(){
+  if(!ensureDb()) return;
+  const code = document.getElementById("recoverCode").value.trim();
+  const pin = document.getElementById("recoverPin").value.trim();
+
+  if(!/^\d{6}$/.test(code)){
+    toast("6자리 코드를 입력해주세요.");
+    return;
+  }
+  if(!/^\d{4}$/.test(pin)){
+    toast("PIN은 숫자 4자리로 입력해주세요.");
+    return;
+  }
+
+  const {data,error} = await db.from("pages").select("*").eq("code",code).maybeSingle();
+  if(error || !data){
+    console.error(error);
+    toast("해당 코드를 가진 페이지를 찾을 수 없어요.");
+    return;
+  }
+
+  if(String(data.pin) !== pin){
+    toast("PIN이 일치하지 않아요.");
+    return;
+  }
+
+  const mine = JSON.parse(localStorage.getItem("my_page_codes") || "[]");
+  if(!mine.includes(code)) mine.push(code);
+  localStorage.setItem("my_page_codes", JSON.stringify(mine));
+
+  document.getElementById("recoverCode").value = "";
+  document.getElementById("recoverPin").value = "";
+
+  toast("내 페이지 목록에 다시 등록했어요.");
+  await loadMyPages();
+}
+
+async function loadMyPages(){
+  document.getElementById("setupWarning").classList.toggle("show", !isConfigured);
+  const box = document.getElementById("myPages");
+  const codes = JSON.parse(localStorage.getItem("my_page_codes") || "[]");
+  if(!codes.length){
+    box.innerHTML = `<div class="empty">아직 만든 페이지가 없어요.</div>`;
+    return;
+  }
+  if(!ensureDb()){
+    box.innerHTML = `<div class="empty">Supabase 설정 후 페이지 목록을 불러올 수 있어요.</div>`;
+    return;
+  }
+
+  const {data,error} = await db.from("pages").select("code,name,role,created_at").in("code",codes).order("created_at",{ascending:false});
+  if(error){ console.error(error); box.innerHTML = `<div class="empty">목록을 불러오지 못했어요.</div>`; return; }
+
+  const existing = data.map(x => x.code);
+  localStorage.setItem("my_page_codes", JSON.stringify(codes.filter(c => existing.includes(c))));
+  if(!data.length){ box.innerHTML = `<div class="empty">아직 만든 페이지가 없어요.</div>`; return; }
+
+  box.innerHTML = data.map(p => `
+    <div class="page-item">
+      <div>
+        <div class="page-title">${esc(p.name)}</div>
+        <div class="page-meta">${esc(p.role || "역할 미입력")}, <span class="code">${p.code}</span></div>
+      </div>
+      <button class="btn btn-white btn-small" onclick="openPin('${p.code}')">열기</button>
+    </div>`).join("");
+}
+
+async function searchPages(){
+  if(!ensureDb()) return;
+  const q = document.getElementById("searchInput").value.trim();
+  const box = document.getElementById("searchResults");
+  if(!q){ toast("코드 또는 이름을 입력해주세요."); return; }
+
+  let query = db.from("pages").select("code,name,role,created_at").limit(30);
+  if(/^\d{6}$/.test(q)) query = query.eq("code",q);
+  else query = query.ilike("name",`%${q}%`);
+
+  const {data,error} = await query.order("created_at",{ascending:false});
+  if(error){ console.error(error); toast("검색 중 오류가 발생했어요."); return; }
+
+  if(!data.length){ box.innerHTML = `<div class="empty">검색 결과가 없어요.</div>`; return; }
+  box.innerHTML = data.map(p => `
+    <div class="page-item">
+      <div>
+        <div class="page-title">${esc(p.name)}</div>
+        <div class="page-meta">${esc(p.role || "역할 미입력")}, <span class="code">${p.code}</span></div>
+      </div>
+      <button class="btn btn-yellow btn-small" onclick="openWriteCode('${p.code}')">피드백 쓰기</button>
+    </div>`).join("");
+}
+
+async function openWriteCode(code){
+  if(!ensureDb() || !checkAppOpen()) return;
+  const {data,error} = await db.from("pages").select("code,name,role,created_at").eq("code",code).maybeSingle();
+  if(error || !data){ console.error(error); toast("페이지를 찾을 수 없어요."); return; }
+  selectedPage = data;
+  document.getElementById("writeTitle").textContent = `${selectedPage.name}님에게 피드백`;
+  document.getElementById("writeMeta").textContent = selectedPage.role || `코드 ${selectedPage.code}`;
+  document.getElementById("strength").value = "";
+  document.getElementById("weakness").value = "";
+  updateCount("strength","strengthCount");
+  updateCount("weakness","weaknessCount");
+  showScreen("write");
+}
+
+async function submitFeedback(){
+  if(!ensureDb() || !checkAppOpen()) return;
+  if(!selectedPage){ toast("피드백 대상 페이지가 없어요."); return; }
+
+  const strength = document.getElementById("strength").value.trim();
+  const weakness = document.getElementById("weakness").value.trim();
+  if(!strength && !weakness){ toast("장점 또는 단점 중 하나 이상 작성해주세요."); return; }
+
+  const {error} = await db.from("feedbacks").insert({
+    page_code:selectedPage.code,
+    strength:strength || null,
+    weakness:weakness || null
+  });
+  if(error){ console.error(error); toast("피드백 제출 중 오류가 발생했어요."); return; }
+  showScreen("submitted");
+}
+
+async function openPin(code){
+  if(!ensureDb()) return;
+  const {data,error} = await db.from("pages").select("*").eq("code",code).maybeSingle();
+  if(error || !data){ toast("페이지를 찾을 수 없어요."); return; }
+  selectedPage = data;
+  pinBuffer = "";
+  document.getElementById("pinTarget").textContent = `${data.name}님의 페이지`;
+  document.getElementById("pinError").textContent = "";
+  updatePinDots();
+  showScreen("pin");
+}
+
+function updatePinDots(){
+  document.querySelectorAll(".pin-dot").forEach((d,i) => d.classList.toggle("on", i < pinBuffer.length));
+}
+function clearPin(){ pinBuffer=""; updatePinDots(); document.getElementById("pinError").textContent=""; }
+function backPin(){ pinBuffer=pinBuffer.slice(0,-1); updatePinDots(); }
+function pressPin(n){
+  if(pinBuffer.length >= 4) return;
+  pinBuffer += n; updatePinDots();
+  if(pinBuffer.length === 4) setTimeout(verifyPin,120);
+}
+
+async function verifyPin(){
+  if(!selectedPage) return;
+  if(pinBuffer === String(selectedPage.pin)){
+    document.getElementById("pinError").textContent = "";
+
+    const mine = JSON.parse(localStorage.getItem("my_page_codes") || "[]");
+    if(!mine.includes(selectedPage.code)){
+      mine.push(selectedPage.code);
+      localStorage.setItem("my_page_codes", JSON.stringify(mine));
+    }
+
+    await openMine(selectedPage.code);
+  }else{
+    document.getElementById("pinError").textContent = "PIN이 일치하지 않아요.";
+    pinBuffer = "";
+    updatePinDots();
+  }
+}
+
+async function openMine(code){
+  const [{data:page,error:pErr},{data:feedbacks,error:fErr}] = await Promise.all([
+    db.from("pages").select("*").eq("code",code).maybeSingle(),
+    db.from("feedbacks").select("*").eq("page_code",code).order("created_at",{ascending:false})
+  ]);
+  if(pErr || fErr || !page){ console.error(pErr||fErr); toast("페이지를 불러오지 못했어요."); return; }
+
+  currentPage = page;
+  currentFeedbacks = feedbacks || [];
+  currentMineTab = "strength";
+
+  document.getElementById("mineName").textContent = `${page.name}님의 피드백`;
+  document.getElementById("mineRole").textContent = page.role || "직무 / 역할 미입력";
+  document.getElementById("mineCode").textContent = page.code;
+
+  const sCount = currentFeedbacks.filter(x => x.strength && x.strength.trim()).length;
+  const wCount = currentFeedbacks.filter(x => x.weakness && x.weakness.trim()).length;
+  document.getElementById("strengthTotal").textContent = `(${sCount})`;
+  document.getElementById("weaknessTotal").textContent = `(${wCount})`;
+
+  renderMineTab("strength");
+  showScreen("mine");
+
+  const key = `last_seen_${code}`;
+  const lastSeen = localStorage.getItem(key);
+  let newCount = 0;
+  if(lastSeen){
+    const t = new Date(lastSeen).getTime();
+    newCount = currentFeedbacks.filter(f => new Date(f.created_at).getTime() > t).length;
+  }else{
+    newCount = currentFeedbacks.length;
+  }
+  localStorage.setItem(key, new Date().toISOString());
+  if(newCount > 0) setTimeout(() => showNewPopup(newCount),300);
+}
+
+function renderMineTab(type){
+  currentMineTab = type;
+  document.getElementById("tabStrength").classList.toggle("active",type==="strength");
+  document.getElementById("tabWeakness").classList.toggle("active",type==="weakness");
+  const items = currentFeedbacks.filter(f => f[type] && f[type].trim());
+  const box = document.getElementById("mineFeedbacks");
+  if(!items.length){
+    box.innerHTML = `<div class="empty">${type==="strength"?"장점":"단점"} 피드백이 아직 없어요.</div>`;
+    return;
+  }
+  box.innerHTML = items.map(f => `
+    <div class="feedback">
+      <div class="feedback-head">
+        <span class="tag ${type==="strength"?"tag-good":"tag-bad"}">${type==="strength"?"장점":"단점"}</span>
+        <span class="feedback-date">${formatDate(f.created_at)}</span>
+      </div>
+      <div class="feedback-text">${esc(f[type])}</div>
+    </div>`).join("");
+}
+
+function showNewPopup(n){
+  document.getElementById("newPopupText").textContent = `${n}개의 새로운 피드백이 있어요! 👀`;
+  document.getElementById("newPopup").classList.add("show");
+}
+function hideNewPopup(){ document.getElementById("newPopup").classList.remove("show"); }
+
+async function copyCurrentCode(){
+  if(!currentPage) return;
+  const text = `익명 피드백을 남겨주세요!\n코드: ${currentPage.code}\n${location.href}`;
+  try{
+    await navigator.clipboard.writeText(text);
+    toast("코드와 사용 안내를 복사했어요.");
+  }catch{
+    toast(`코드: ${currentPage.code}`);
+  }
+}
+
+async function deleteOwnPage(){
+  if(!currentPage) return;
+  const ok = confirm(`"${currentPage.name}" 페이지와 모든 피드백을 영구 삭제할까요?`);
+  if(!ok) return;
+  const {error} = await db.from("pages").delete().eq("code",currentPage.code);
+  if(error){ console.error(error); toast("삭제하지 못했어요."); return; }
+
+  let codes = JSON.parse(localStorage.getItem("my_page_codes") || "[]");
+  codes = codes.filter(c => c !== currentPage.code);
+  localStorage.setItem("my_page_codes", JSON.stringify(codes));
+  localStorage.removeItem(`last_seen_${currentPage.code}`);
+  currentPage = null;
+  currentFeedbacks = [];
+  toast("페이지를 삭제했어요.");
+  showScreen("home");
+}
+
+function adminLogin(){
+  const pw = document.getElementById("adminPassword").value;
+  if(pw !== ADMIN_PASSWORD){
+    document.getElementById("adminLoginError").textContent = "비밀번호가 일치하지 않아요.";
+    return;
+  }
+  adminAuthed = true;
+  document.getElementById("adminPassword").value = "";
+  document.getElementById("adminLoginError").textContent = "";
+  showScreen("admin");
+}
+
+function adminLogout(){
+  adminAuthed = false;
+  showScreen("home");
+}
+
+function loadMode(){
+  const mode = localStorage.getItem("app_mode") || "open";
+  const open = mode === "open";
+  document.getElementById("modeToggle").checked = open;
+  document.getElementById("modeText").textContent = open
+    ? "페이지 생성과 피드백 작성을 허용합니다."
+    : "읽기 전용 상태입니다. 신규 생성과 작성이 차단됩니다.";
+}
+
+function toggleAppMode(){
+  if(!adminAuthed) return;
+  const open = document.getElementById("modeToggle").checked;
+  localStorage.setItem("app_mode", open ? "open" : "closed");
+  loadMode();
+  toast(open ? "서비스를 열었어요." : "서비스를 잠갔어요.");
+}
+
+async function loadAdmin(){
+  if(!adminAuthed || !ensureDb()) return;
+  loadMode();
+  const [{data:pages,error:pErr},{count,error:fErr}] = await Promise.all([
+    db.from("pages").select("code,name,role,created_at").order("created_at",{ascending:false}),
+    db.from("feedbacks").select("*",{count:"exact",head:true})
+  ]);
+  if(pErr || fErr){ console.error(pErr||fErr); toast("관리자 데이터를 불러오지 못했어요."); return; }
+
+  document.getElementById("pageStat").textContent = pages.length;
+  document.getElementById("feedbackStat").textContent = count || 0;
+  const box = document.getElementById("adminPages");
+  if(!pages.length){ box.innerHTML = `<div class="empty">생성된 페이지가 없어요.</div>`; return; }
+
+  box.innerHTML = pages.map(p => `
+    <div class="page-item">
+      <div>
+        <div class="page-title">${esc(p.name)}</div>
+        <div class="page-meta">${esc(p.role || "역할 미입력")}, <span class="code">${p.code}</span>, ${formatDate(p.created_at)}</div>
+      </div>
+      <button class="btn btn-white btn-small" onclick="openAdminDetail('${p.code}')">보기</button>
+    </div>`).join("");
+}
+
+async function openAdminDetail(code){
+  if(!adminAuthed) return;
+  const [{data:page,error:pErr},{data:feedbacks,error:fErr}] = await Promise.all([
+    db.from("pages").select("*").eq("code",code).maybeSingle(),
+    db.from("feedbacks").select("*").eq("page_code",code).order("created_at",{ascending:false})
+  ]);
+  if(pErr || fErr || !page){ console.error(pErr||fErr); toast("상세 정보를 불러오지 못했어요."); return; }
+
+  adminSelectedPage = page;
+  document.getElementById("adminDetailName").textContent = page.name;
+  document.getElementById("adminDetailMeta").textContent = `${page.role || "역할 미입력"}, 코드 ${page.code}`;
+  const box = document.getElementById("adminFeedbacks");
+
+  if(!feedbacks.length){ box.innerHTML = `<div class="empty">피드백이 없어요.</div>`; }
+  else{
+    box.innerHTML = feedbacks.map(f => `
+      <div class="feedback" id="admin-fb-${f.id}">
+        <div class="feedback-head">
+          <span class="feedback-date">${formatDate(f.created_at)}</span>
+          <button class="icon-btn" title="피드백 삭제" onclick="adminDeleteFeedback('${f.id}')">🗑️</button>
+        </div>
+        ${f.strength ? `<div style="margin-bottom:10px"><span class="tag tag-good">장점</span><div class="feedback-text" style="margin-top:7px">${esc(f.strength)}</div></div>` : ""}
+        ${f.weakness ? `<div><span class="tag tag-bad">단점</span><div class="feedback-text" style="margin-top:7px">${esc(f.weakness)}</div></div>` : ""}
+      </div>`).join("");
+  }
+  showScreen("admin-detail");
+}
+
+async function adminDeleteFeedback(id){
+  if(!adminAuthed) return;
+  if(!confirm("이 피드백을 영구 삭제할까요?")) return;
+  const {error} = await db.from("feedbacks").delete().eq("id",id);
+  if(error){ console.error(error); toast("피드백을 삭제하지 못했어요."); return; }
+  document.getElementById(`admin-fb-${id}`)?.remove();
+  toast("피드백을 삭제했어요.");
+}
+
+async function adminDeletePage(){
+  if(!adminAuthed || !adminSelectedPage) return;
+  if(!confirm(`"${adminSelectedPage.name}" 페이지와 모든 피드백을 영구 삭제할까요?`)) return;
+  const code = adminSelectedPage.code;
+  const {error} = await db.from("pages").delete().eq("code",code);
+  if(error){ console.error(error); toast("페이지를 삭제하지 못했어요."); return; }
+  adminSelectedPage = null;
+  toast("페이지를 삭제했어요.");
+  showScreen("admin");
+}
+
+function esc(v){
+  return String(v ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  })[m]);
+}
+function formatDate(v){
+  try{
+    return new Intl.DateTimeFormat("ko-KR",{year:"2-digit",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(v));
+  }catch{return ""}
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("setupWarning").classList.toggle("show", !isConfigured);
+  loadMyPages();
+});
+</script>
+</body>
+</html>
